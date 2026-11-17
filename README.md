@@ -67,6 +67,11 @@ Wayback Machine and every headshot is scored by both tests.
   their false-positive rate on real people's photos used by fake journalists.
 - **Open data:** `atlas_faces.jsonl` lists every persona face found, with its archived page
   on the Wayback Machine, the image's SHA-256 and both scores. All cases are already public.
+- **Graded by a program published before the data:** `grade_atlas.py` turns the job's
+  output into a verdict for each of the eleven predictions, and
+  [GRADING-3.md](GRADING-3.md) fixes the rules the pre-registration left open (pooling,
+  ties, what happens if the detector's validity check fails). Both were released while the
+  survey 3 job was still queued.
 
 Plan and predictions, fixed before any data: [PREREGISTRATION-3.md](PREREGISTRATION-3.md)
 (nine predictions, plus amendment 1, also written before any data, which adds three cases
@@ -89,13 +94,16 @@ and two predictions).
 pip install -r requirements.txt
 python byline_faces.py headshot.jpg            # one image: eye geometry and both flags
 python job.py --out-dir out --data-dir data --max-sites 50 --skip-documented   # survey 1, small
-python -m unittest -v test_byline_faces test_eras test_atlas   # standard-library tests, no network
+python -m unittest -v test_byline_faces test_eras test_atlas test_grade_atlas   # standard-library tests, no network
 
 # surveys 2 and 3 also need a CPU build of PyTorch:
 pip install --extra-index-url https://download.pytorch.org/whl/cpu torch==2.5.1+cpu torchvision==0.20.1+cpu
 pip install -r requirements-eras.txt
 python eras.py --out-dir out2 --data-dir data --max-sites 50 --time-budget-min 30
 python atlas.py --out-dir out3 --data-dir data --time-budget-min 60
+
+# grade survey 3 (standard library only); --review adds the by-eye sensitivity analysis
+python grade_atlas.py out3/atlas_summary.json out3/atlas_faces.jsonl --out grades.json
 ```
 
 job.py honours robots.txt, sends a few requests to each site, one at a time, and identifies
@@ -104,6 +112,8 @@ through the Wayback Machine, paced, and back off on "too many requests" answers.
 
 ## Status
 
+- v0.4.1: grade_atlas.py, test_grade_atlas.py and GRADING-3.md, the grader for survey 3's
+  eleven predictions, published before any survey 3 data.
 - v0.4.0: survey 3, the fake-journalist face atlas (atlas.py, test_atlas.py,
   PREREGISTRATION-3.md), 17 sourced cases from 2020 to 2026.
 - v0.3.0: survey 2 (eras.py, commfor.py, test_eras.py, PREREGISTRATION-2.md); two newly
@@ -118,11 +128,11 @@ Made by MV2 of Munim, Inc. (mv2@munimtech.com), with AI agents. Companion to
 [byline-check](https://github.com/munimtechnologies/byline-check), a tool editors can use to
 vet freelance pitches.
 
-Licence: Apache-2.0 (code); pre-registration text CC BY 4.0. Prior work: Yang, Singh &
-Menczer, "Characteristics and prevalence of fake social media profiles with AI-generated
-faces" (2024); Ricker et al., "AI-Generated Faces in the Real World" (2024); Park & Owens,
-"Community Forensics: Using Thousands of Generators to Train Fake Image Detectors" (CVPR
-2025); DFRLab, "The evolving role of AI-generated media in shaping disinformation
+Licence: Apache-2.0 (code); pre-registration and grading text CC BY 4.0. Prior work: Yang,
+Singh & Menczer, "Characteristics and prevalence of fake social media profiles with
+AI-generated faces" (2024); Ricker et al., "AI-Generated Faces in the Real World" (2024); Park
+& Owens, "Community Forensics: Using Thousands of Generators to Train Fake Image Detectors"
+(CVPR 2025); DFRLab, "The evolving role of AI-generated media in shaping disinformation
 campaigns" (May 2025). Data and models used at run time, not bundled: the YuNet face
 detector (OpenCV Zoo, MIT); Community Forensics weights (OwensLab/commfor-model-384, MIT);
 TheKernel01/140k-Real-and-Fake-Faces on Hugging Face (a mirror of xhlulu's Kaggle set: FFHQ
