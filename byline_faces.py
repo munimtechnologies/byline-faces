@@ -9,32 +9,34 @@ every image. Yang, Singh and Menczer (2024, arXiv:2401.02627) used this to estim
 many Twitter/X profiles use such faces. This module applies the same eye-placement test,
 plus a crop-tolerant variant, to the author headshots that news sites publish.
 
-Pure functions (geometry, scoring, HTML parsing) need only the standard library.
-FaceDetector needs opencv-python-headless and numpy and is imported lazily.
+Pure functions (geometry, scoring, HTML parsing, Wayback CDX helpers) need only the
+standard library. FaceDetector needs opencv-python-headless and numpy and is imported lazily.
 
 A flag is a lead, not a verdict: every flagged face must be looked at by a person, and a
-real photo that happens to be centred can trip the test. Diffusion-model faces (common
-since 2023) do not have the fixed-eye artifact, so this test cannot see them.
+real photo that happens to be centred can trip the test. Real photos cropped with the FFHQ
+recipe carry the same eye placement as StyleGAN faces. Diffusion-model faces (common since
+2023) do not have the fixed-eye artifact, so this test cannot see them.
 """
 import hashlib
 import json
 import math
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 import urllib.robotparser
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
-USER_AGENT = ("byline-faces/0.1 (research by MV2 of Munim, Inc.; mv2@munimtech.com; "
+USER_AGENT = ("byline-faces/0.2 (research by MV2 of Munim, Inc.; mv2@munimtech.com; "
               "+https://github.com/munimtechnologies/byline-faces)")
 ROBOTS_TOKEN = "byline-faces"
 
 # Reference eye positions (image-left eye, image-right eye) in [0, 1] units, from the FFHQ
 # alignment recipe: eye distance about a quarter of the width, eyes slightly above centre.
-# job.py replaces them with means measured on freshly generated StyleGAN faces.
+# job.py replaces them with means measured on known StyleGAN faces.
 FALLBACK_REF = ((0.375, 0.475), (0.625, 0.475))
 FALLBACK_CALIB = {
     "n": 0,
@@ -149,6 +151,25 @@ def histogram(values, edges):
             i -= 1
         counts[i] += 1
     return counts
+
+
+def rate_summary(flags):
+    """Counts and rates of the two tests over a list of classify()-style dicts."""
+    n = len(flags)
+    out = {"n": n,
+           "aligned": sum(1 for f in flags if f["aligned"]),
+           "centred_level": sum(1 for f in flags if f["centred_level"]),
+           "either": sum(1 for f in flags if f["aligned"] or f["centred_level"])}
+    for key in ("aligned", "centred_level", "either"):
+        out["rate_" + key] = (out[key] / n) if n else None
+    return out
+
+
+def group_key(group):
+    """Summary bucket for a site's group label: population sites pool together, control and
+    documented groups keep their own label so each documented case is reported separately."""
+    head = (group or "").split(":")[0]
+    return group if head in ("control", "documented") else head
 
 
 # ---------------------------------------------------------------------------
@@ -309,9 +330,10 @@ IMG_HINT = re.compile(r"author|avatar|headshot|byline|profile|bio|portrait|write
                       r"staff|mugshot|journalist|reporter", re.I)
 
 
-def find_person_images(html_text, page_url, name_hint=""):
-    """Candidate headshot URLs on an author page: JSON-LD Person images, <img> tags with
-    author-like class/alt/src, then og:image / twitter:image. Logos and SVGs are skipped."""
+def find_person_images(html_text, page_url, name_hint="", meta=True):
+    """Candidate headshot URLs on a page: JSON-LD Person images, <img> tags with
+    author-like class/alt/src, then (if meta) og:image / twitter:image. Logos and SVGs
+    are skipped. Use meta=False on article pages, where og:image is the story picture."""
     c = parse_html(html_text)
     cands = []
     for obj in ld_objects(c.ldjson):
@@ -340,10 +362,11 @@ def find_person_images(html_text, page_url, name_hint=""):
                         a.get("_in_link", "")])
         if IMG_HINT.search(hay) or (name_hint and name_hint.lower() in a.get("alt", "").lower()):
             cands.append(("img", src))
-    for m in c.metas:
-        key = (m.get("property") or m.get("name") or "").lower()
-        if key in ("og:image", "twitter:image") and m.get("content"):
-            cands.append(("og", m["content"]))
+    if meta:
+        for m in c.metas:
+            key = (m.get("property") or m.get("name") or "").lower()
+            if key in ("og:image", "twitter:image") and m.get("content"):
+                cands.append(("og", m["content"]))
     out, seen = [], set()
     for kind, u in cands:
         full = _clean(u, page_url)
@@ -355,6 +378,80 @@ def find_person_images(html_text, page_url, name_hint=""):
         seen.add(full)
         out.append({"kind": kind, "url": full})
     return out
+
+
+# ---------------------------------------------------------------------------
+# Wayback Machine (for documented fake-persona sites whose author pages were removed)
+# ---------------------------------------------------------------------------
+
+WAYBACK = "https://web.archive.org"
+PROFILE_PAGE = re.compile(r"masthead|our-team|/team/?$|/staff/?$|about-us|/about/?$|"
+                          r"contributors|redazione|newsroom|/editors?/?$", re.I)
+SKIP_PAGE = re.compile(r"/feed/?$|/page/\d+|\.(jpe?g|png|gif|webp|css|js|xml|json)$|/amp/?$",
+                       re.I)
+
+
+def cdx_query_url(prefix, limit=3000):
+    """CDX API query: one (earliest) HTML capture with status 200 per URL under prefix."""
+    params = [("url", prefix), ("matchType", "prefix"), ("output", "json"),
+              ("fl", "timestamp,original,statuscode,mimetype"),
+              ("filter", "statuscode:200"), ("filter", "mimetype:text/html"),
+              ("collapse", "urlkey"), ("limit", str(limit))]
+    return WAYBACK + "/cdx/search/cdx?" + urllib.parse.urlencode(params)
+
+
+def cdx_rows(cdx_json):
+    """[(timestamp, original)] from CDX output=json (the first row is the header)."""
+    if not isinstance(cdx_json, list) or not cdx_json:
+        return []
+    header = cdx_json[0]
+    try:
+        ti, oi = header.index("timestamp"), header.index("original")
+    except (ValueError, AttributeError):
+        return []
+    out = []
+    for row in cdx_json[1:]:
+        if isinstance(row, list) and len(row) > max(ti, oi):
+            out.append((row[ti], row[oi]))
+    return out
+
+
+def wayback_url(timestamp, original, flag="id_"):
+    """Raw archived copy (id_: page as captured; im_: image) of original at timestamp."""
+    return "%s/web/%s%s/%s" % (WAYBACK, timestamp, flag, original)
+
+
+def _norm_path(url):
+    p = urlparse(url if "://" in url else "http://" + url)
+    return (host_of(p.geturl()) + p.path.rstrip("/")).lower()
+
+
+def profile_candidates(rows, slugs=(), limit=40):
+    """Archived pages that look like writer profiles, as (timestamp, original, slug_hit):
+    pages naming a documented persona's slug first, then author-style paths, then
+    masthead/team pages. One capture per normalised URL."""
+    slugs = [s.lower() for s in slugs if s]
+    tiers = ([], [], [])
+    seen = set()
+    for ts, orig in rows:
+        key = _norm_path(orig)
+        if key in seen:
+            continue
+        path = urlparse(orig if "://" in orig else "http://" + orig).path or "/"
+        if SKIP_PAGE.search(path):
+            continue
+        low = path.lower()
+        if any(s in low for s in slugs):
+            tier = 0
+        elif AUTHOR_PATH.search(path):
+            tier = 1
+        elif PROFILE_PAGE.search(path):
+            tier = 2
+        else:
+            continue
+        seen.add(key)
+        tiers[tier].append((ts, orig, tier == 0))
+    return (tiers[0] + tiers[1] + tiers[2])[:limit]
 
 
 # ---------------------------------------------------------------------------
@@ -405,6 +502,13 @@ def decode_text(body, content_type=""):
         except (LookupError, UnicodeDecodeError):
             continue
     return body.decode("utf-8", "replace")
+
+
+def looks_like_image(body):
+    """True if the bytes start like a JPEG, PNG, GIF or WebP file (not an HTML page)."""
+    b = body or b""
+    return (b[:3] == b"\xff\xd8\xff" or b[:8] == b"\x89PNG\r\n\x1a\n" or b[:4] == b"GIF8"
+            or (b[:4] == b"RIFF" and b[8:12] == b"WEBP"))
 
 
 def sha256(data):
@@ -495,6 +599,15 @@ class FaceDetector:
                     faces.append({"eyes": (pts[0], pts[1]), "score": 1.0,
                                   "area_frac": float(w * h) / float(ww * hh)})
         return {"w": ww, "h": hh, "w0": w0, "h0": h0, "faces": faces}, None
+
+    def geometry(self, data):
+        """eye_geometry() of the single face in an image, or None (no face, several faces,
+        or undecodable)."""
+        info, err = self.detect(data)
+        if err or len(info["faces"]) != 1:
+            return None
+        f = info["faces"][0]
+        return eye_geometry(f["eyes"][0], f["eyes"][1], info["w"], info["h"])
 
     def score(self, data, calib=None):
         """One record for one image: geometry and flags if exactly one face is found."""
