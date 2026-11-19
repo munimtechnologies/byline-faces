@@ -77,13 +77,36 @@ Plan and predictions, fixed before any data: [PREREGISTRATION-3.md](PREREGISTRAT
 (nine predictions, plus amendment 1, also written before any data, which adds three cases
 and two predictions).
 
+## Survey 4: persona timelines
+
+Survey 3 reads each persona's earliest archived page. Some suspected fake writers lasted
+for years, and their faces changed. Press Gazette (12 May 2026) reported that the current
+picture of one long-running finance "contributor" scans as 100% AI-generated, while his
+early byline pictures appear to show a different person. Survey 4 (`timeline.py`) follows
+each persona's writer pages through the Wayback Machine, with up to ten captures per page
+spread over its archived life. It keeps the persona's headshot from each capture, groups
+identical pictures (SHA-256 and a difference hash) and scores every distinct headshot with
+both tests.
+
+- **The question:** when a long-running fake persona changes its face, what does it change
+  to, and when? Ten personas from three documented cases: the four finance writers
+  questioned by Press Gazette (suspected, not proven), OpenAI's seven "Bogus Bylines"
+  personas and "Daniel Robson".
+- **A built-in control:** a picture captured before December 2018 cannot come from StyleGAN
+  or a diffusion model, so the detector's flags on those pictures are false alarms.
+- **Graded by code published before the data:** `grade()` in `timeline.py` turns the output
+  into verdicts for predictions T1-T8.
+
+Plan, predictions and grading rules, fixed before any data:
+[PREREGISTRATION-4.md](PREREGISTRATION-4.md).
+
 ## Limits, stated up front
 
 - A flag is a lead, not a verdict. Real photos can trip either test, and every flagged face
   has to be looked at by a person.
 - Survey 1's eye test cannot see diffusion faces. Survey 2's detector can in principle, but
   its error rate on small, re-compressed headshots is only known once it has been measured.
-- Survey 3 is an atlas of exposed cases, not a prevalence estimate, and its counts are small.
+- Surveys 3 and 4 study exposed cases, not prevalence, and their counts are small.
 - Results are published as counts. An outlet is named only after a person has reviewed the
   face and the outlet has been asked for comment (documented cases, already public, are
   the exception). Flagged images are kept for review and are not published.
@@ -94,24 +117,28 @@ and two predictions).
 pip install -r requirements.txt
 python byline_faces.py headshot.jpg            # one image: eye geometry and both flags
 python job.py --out-dir out --data-dir data --max-sites 50 --skip-documented   # survey 1, small
-python -m unittest -v test_byline_faces test_eras test_atlas test_grade_atlas   # standard-library tests, no network
+python -m unittest -v test_byline_faces test_eras test_atlas test_grade_atlas test_timeline   # standard-library tests, no network
 
-# surveys 2 and 3 also need a CPU build of PyTorch:
+# surveys 2-4 also need a CPU build of PyTorch:
 pip install --extra-index-url https://download.pytorch.org/whl/cpu torch==2.5.1+cpu torchvision==0.20.1+cpu
 pip install -r requirements-eras.txt
 python eras.py --out-dir out2 --data-dir data --max-sites 50 --time-budget-min 30
 python atlas.py --out-dir out3 --data-dir data --time-budget-min 60
+python timeline.py --out-dir out4 --data-dir data --time-budget-min 60
 
 # grade survey 3 (standard library only); --review adds the by-eye sensitivity analysis
 python grade_atlas.py out3/atlas_summary.json out3/atlas_faces.jsonl --out grades.json
+# survey 4 grades itself: out4/timeline_grades.json
 ```
 
 job.py honours robots.txt, sends a few requests to each site, one at a time, and identifies
-itself as `byline-faces/0.2` with a contact address. eras.py and atlas.py read pages only
-through the Wayback Machine, paced, and back off on "too many requests" answers.
+itself as `byline-faces/0.2` with a contact address. eras.py, atlas.py and timeline.py read
+pages only through the Wayback Machine, paced, and back off on "too many requests" answers.
 
 ## Status
 
+- v0.5.0: survey 4, persona timelines (timeline.py, test_timeline.py,
+  PREREGISTRATION-4.md), with its grader, published before any survey 4 data.
 - v0.4.1: grade_atlas.py, test_grade_atlas.py and GRADING-3.md, the grader for survey 3's
   eleven predictions, published before any survey 3 data.
 - v0.4.0: survey 3, the fake-journalist face atlas (atlas.py, test_atlas.py,
@@ -122,7 +149,7 @@ through the Wayback Machine, paced, and back off on "too many requests" answers.
   parked domain), new documented-cases group, article-page headshots, we-news.com control
   read from its staff page. Pre-registration amendment 1 added before any data was seen.
 - v0.1.0: method, tests and pre-registration.
-- Surveys 1, 2 and 3 are queued; results and their review will be added here.
+- Surveys 1-4 are queued; results and their review will be added here.
 
 Made by MV2 of Munim, Inc. (mv2@munimtech.com), with AI agents. Companion to
 [byline-check](https://github.com/munimtechnologies/byline-check), a tool editors can use to
@@ -133,9 +160,10 @@ Singh & Menczer, "Characteristics and prevalence of fake social media profiles w
 AI-generated faces" (2024); Ricker et al., "AI-Generated Faces in the Real World" (2024); Park
 & Owens, "Community Forensics: Using Thousands of Generators to Train Fake Image Detectors"
 (CVPR 2025); DFRLab, "The evolving role of AI-generated media in shaping disinformation
-campaigns" (May 2025). Data and models used at run time, not bundled: the YuNet face
-detector (OpenCV Zoo, MIT); Community Forensics weights (OwensLab/commfor-model-384, MIT);
-TheKernel01/140k-Real-and-Fake-Faces on Hugging Face (a mirror of xhlulu's Kaggle set: FFHQ
-photos and Bojan Tunguz's "1 Million Fake Faces"); OpenRL/DeepFakeFace (Stable Diffusion
-faces and IMDB-WIKI photos); Labeled Faces in the Wild; the Internet Archive's Wayback
-Machine.
+campaigns" (May 2025). Reporting used for survey 4: Press Gazette, "Prolific finance
+journalists facing questions over identities" (Rob Waugh, 12 May 2026). Data and models used
+at run time, not bundled: the YuNet face detector (OpenCV Zoo, MIT); Community Forensics
+weights (OwensLab/commfor-model-384, MIT); TheKernel01/140k-Real-and-Fake-Faces on Hugging
+Face (a mirror of xhlulu's Kaggle set: FFHQ photos and Bojan Tunguz's "1 Million Fake
+Faces"); OpenRL/DeepFakeFace (Stable Diffusion faces and IMDB-WIKI photos); Labeled Faces in
+the Wild; the Internet Archive's Wayback Machine.
