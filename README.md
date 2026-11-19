@@ -46,6 +46,13 @@ it a baseline measured on the same outlets:
 
 Plan and predictions, fixed before any data: [PREREGISTRATION-2.md](PREREGISTRATION-2.md).
 
+**Graded by a program published before the data.** `grade_surveys12.py` turns the output of
+survey 1 and of survey 2 into a verdict for each of their seventeen predictions (P1-P8 with
+1b, E1-E9). [GRADING-1-2.md](GRADING-1-2.md) fixes the rules the pre-registrations left
+open: which sites count as reachable, what happens when a calibration set fails to download,
+and when a rise in flagged headshots is called "unresolved" because it comes from an image
+format that was rare before 2022. Both were released while the two jobs were still queued.
+
 ## Survey 3: the fake-journalist face atlas, 2020-2026
 
 Seventeen cases of invented journalists exposed in published reporting since 2020, from the
@@ -117,7 +124,7 @@ Plan, predictions and grading rules, fixed before any data:
 pip install -r requirements.txt
 python byline_faces.py headshot.jpg            # one image: eye geometry and both flags
 python job.py --out-dir out --data-dir data --max-sites 50 --skip-documented   # survey 1, small
-python -m unittest -v test_byline_faces test_eras test_atlas test_grade_atlas test_timeline   # standard-library tests, no network
+python -m unittest -v test_byline_faces test_eras test_atlas test_grade_atlas test_timeline test_grade_surveys12   # standard-library tests, no network
 
 # surveys 2-4 also need a CPU build of PyTorch:
 pip install --extra-index-url https://download.pytorch.org/whl/cpu torch==2.5.1+cpu torchvision==0.20.1+cpu
@@ -126,6 +133,9 @@ python eras.py --out-dir out2 --data-dir data --max-sites 50 --time-budget-min 3
 python atlas.py --out-dir out3 --data-dir data --time-budget-min 60
 python timeline.py --out-dir out4 --data-dir data --time-budget-min 60
 
+# grade surveys 1 and 2 (standard library only)
+python grade_surveys12.py survey1 out --out grades1.json
+python grade_surveys12.py survey2 out2 --out grades2.json
 # grade survey 3 (standard library only); --review adds the by-eye sensitivity analysis
 python grade_atlas.py out3/atlas_summary.json out3/atlas_faces.jsonl --out grades.json
 # survey 4 grades itself: out4/timeline_grades.json
@@ -137,6 +147,8 @@ pages only through the Wayback Machine, paced, and back off on "too many request
 
 ## Status
 
+- v0.5.1: grade_surveys12.py, test_grade_surveys12.py and GRADING-1-2.md, the grader for
+  surveys 1 and 2, published before any survey 1 or survey 2 data.
 - v0.5.0: survey 4, persona timelines (timeline.py, test_timeline.py,
   PREREGISTRATION-4.md), with its grader, published before any survey 4 data.
 - v0.4.1: grade_atlas.py, test_grade_atlas.py and GRADING-3.md, the grader for survey 3's
