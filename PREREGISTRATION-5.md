@@ -92,3 +92,26 @@ benchmark images). This survey runs only after surveys 1-4 have results, so thei
 Real former staff are not named in any output. Before-period pictures appear only as
 counts and scores; their images are never published. Invented personas named in the
 reporting above may be named.
+
+## Amendment 1: implementation rules (2026-11-27, before any data)
+
+Written with the code (`survey5.py`, `test_survey5.py`), still before any data for this
+survey and before any result of surveys 1-4. The design above leaves these choices open; they
+are fixed now and change none of V1-V4 or their thresholds.
+
+- A writer page is a path of the form `/author/<slug>/` (no pagination, feed or index).
+- Before uses captures from 2023-01-01 to 2025-08-31, the page-template era nearest the
+  change, and the **latest** capture of each writer page in that window. After uses the
+  **earliest** capture of each writer page from 2026-02-19 on, nearest the reported
+  replacement. Up to 80 writer pages per period, taken in slug order, alternating between
+  the two periods so a time limit cannot starve one of them.
+- Up to two person images per archived page (survey 3's rule). "Each period has at least 5
+  distinct headshots" counts single-face images; for V1 and V2 it counts those with a
+  Community Forensics score.
+- V3 is graded on the largest file (in bytes) among the single-face images whose URL contains
+  "ChatGPT-Image", from either the main or the secondary pages; every such score is
+  reported. If none is scored, V3 is "unresolved".
+- The secondary pages are read first, so a time limit cannot cut V3.
+- The code also reports how many distinct pictures appear in both periods.
+- The code ships now, ahead of the v0.6 results release. The survey itself still runs only
+  after the pipeline of surveys 1-4 has worked on real data.

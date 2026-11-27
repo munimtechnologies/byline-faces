@@ -5,12 +5,13 @@ who invent journalists get their faces?
 
 Fake writer profiles with AI-made headshots have been exposed one outlet at a time:
 Sports Illustrated (AdVon, 2023), Elle Belgium (Ventures Media, 2025), the South Florida
-Standard (2026), Brown Brothers Media's sites (2026), We-News.com's "AI correspondents"
-(Canada, 2026), the "Daniel Robson" columns removed by Canadian outlets (2026), Paradise
-Media's Philadelphia-area sites (Billy Penn, 11 Nov 2026) and three B2B trade sites (Press
-Gazette, 17 Nov 2026). In 2026 Google's guidelines began naming AI-generated author photos
-as an example of fake profiles. Nobody has measured how common they are across outlets.
-This project does, with an open and reproducible method.
+Standard (2026), VideoGamer and other Clickout Media sites (2026), Brown Brothers Media's
+sites (2026), We-News.com's "AI correspondents" (Canada, 2026), the "Daniel Robson" columns
+removed by Canadian outlets (2026), Paradise Media's Philadelphia-area sites (Billy Penn, 11
+Nov 2026) and three B2B trade sites (Press Gazette, 17 Nov 2026). In October 2026 Google's
+guidance for site owners began calling invented creator profiles with AI-generated headshots
+"a form of deception". Nobody has measured how common they are across outlets. This project
+does, with an open and reproducible method.
 
 ## Survey 1: the StyleGAN eye test
 
@@ -107,13 +108,38 @@ both tests.
 Plan, predictions and grading rules, fixed before any data:
 [PREREGISTRATION-4.md](PREREGISTRATION-4.md).
 
+## Survey 5: one site, before and after
+
+Surveys 1-4 compare pictures from different sites and years. A detector could separate two
+such sets by their compression or cropping rather than by how the faces were made. Survey 5
+removes that confound with one documented case. After its sale to Clickout Media, the gaming
+site VideoGamer replaced its staff bylines with invented writers whose profile pictures
+looked AI-made. One of those image files was named "ChatGPT-Image-Oct-20-2025-...png"
+([Kotaku, 26 Feb 2026](https://kotaku.com/resident-evil-requiem-metacritic-ai-review-videogamer-2000674042);
+[Press Gazette, 27 Feb 2026](https://pressgazette.co.uk/news/staff-journalists-sacked-and-misleadingly-replaced-with-ai-writers/)).
+
+- **The test:** `survey5.py` scores the writer headshots the same site showed on the same
+  page template, before the change (archived before September 2025) and after it (archived
+  from 19 February 2026 on).
+- **The questions:** does Community Forensics separate the two periods (V1, V2)? Does it flag
+  the face whose own file names its generator (V3)? Do the new faces escape the StyleGAN eye
+  test (V4)?
+- **Graded by code published before the data:** `grade()` in `survey5.py`.
+- **Privacy:** real former staff are never named, and their pictures appear only as counts
+  and scores.
+
+Plan and predictions, fixed before any data: [PREREGISTRATION-5.md](PREREGISTRATION-5.md).
+Its amendment 1, written with the code and also before any data, fixes how captures are
+chosen. Survey 5 runs after surveys 1-4 have shown that the pipeline works on real data.
+
 ## Limits, stated up front
 
 - A flag is a lead, not a verdict. Real photos can trip either test, and every flagged face
   has to be looked at by a person.
 - Survey 1's eye test cannot see diffusion faces. Survey 2's detector can in principle, but
   its error rate on small, re-compressed headshots is only known once it has been measured.
-- Surveys 3 and 4 study exposed cases, not prevalence, and their counts are small.
+- Surveys 3 and 4 study exposed cases, not prevalence, and their counts are small. Survey 5
+  is a single site.
 - Results are published as counts. An outlet is named only after a person has reviewed the
   face and the outlet has been asked for comment (documented cases, already public, are
   the exception). Flagged images are kept for review and are not published.
@@ -124,29 +150,33 @@ Plan, predictions and grading rules, fixed before any data:
 pip install -r requirements.txt
 python byline_faces.py headshot.jpg            # one image: eye geometry and both flags
 python job.py --out-dir out --data-dir data --max-sites 50 --skip-documented   # survey 1, small
-python -m unittest -v test_byline_faces test_eras test_atlas test_grade_atlas test_timeline test_grade_surveys12   # standard-library tests, no network
+python -m unittest -v test_byline_faces test_eras test_atlas test_grade_atlas test_timeline test_grade_surveys12 test_survey5   # standard-library tests, no network
 
-# surveys 2-4 also need a CPU build of PyTorch:
+# surveys 2-5 also need a CPU build of PyTorch:
 pip install --extra-index-url https://download.pytorch.org/whl/cpu torch==2.5.1+cpu torchvision==0.20.1+cpu
 pip install -r requirements-eras.txt
 python eras.py --out-dir out2 --data-dir data --max-sites 50 --time-budget-min 30
 python atlas.py --out-dir out3 --data-dir data --time-budget-min 60
 python timeline.py --out-dir out4 --data-dir data --time-budget-min 60
+python survey5.py --out-dir out5 --data-dir data --time-budget-min 60
 
 # grade surveys 1 and 2 (standard library only)
 python grade_surveys12.py survey1 out --out grades1.json
 python grade_surveys12.py survey2 out2 --out grades2.json
 # grade survey 3 (standard library only); --review adds the by-eye sensitivity analysis
 python grade_atlas.py out3/atlas_summary.json out3/atlas_faces.jsonl --out grades.json
-# survey 4 grades itself: out4/timeline_grades.json
+# surveys 4 and 5 grade themselves: out4/timeline_grades.json, out5/survey5_summary.json
 ```
 
 job.py honours robots.txt, sends a few requests to each site, one at a time, and identifies
-itself as `byline-faces/0.2` with a contact address. eras.py, atlas.py and timeline.py read
-pages only through the Wayback Machine, paced, and back off on "too many requests" answers.
+itself as `byline-faces/0.2` with a contact address. eras.py, atlas.py, timeline.py and
+survey5.py read pages only through the Wayback Machine, paced, and back off on "too many
+requests" answers.
 
 ## Status
 
+- v0.5.2: survey 5 code (survey5.py, test_survey5.py) and PREREGISTRATION-5.md amendment 1,
+  published before any survey 5 data.
 - v0.5.1: grade_surveys12.py, test_grade_surveys12.py and GRADING-1-2.md, the grader for
   surveys 1 and 2, published before any survey 1 or survey 2 data.
 - v0.5.0: survey 4, persona timelines (timeline.py, test_timeline.py,
@@ -161,7 +191,7 @@ pages only through the Wayback Machine, paced, and back off on "too many request
   parked domain), new documented-cases group, article-page headshots, we-news.com control
   read from its staff page. Pre-registration amendment 1 added before any data was seen.
 - v0.1.0: method, tests and pre-registration.
-- Surveys 1-4 are queued; results and their review will be added here.
+- Surveys 1-4 are waiting for compute; results and their review will be added here.
 
 Made by MV2 of Munim, Inc. (mv2@munimtech.com), with AI agents. Companion to
 [byline-check](https://github.com/munimtechnologies/byline-check), a tool editors can use to
@@ -173,9 +203,11 @@ AI-generated faces" (2024); Ricker et al., "AI-Generated Faces in the Real World
 & Owens, "Community Forensics: Using Thousands of Generators to Train Fake Image Detectors"
 (CVPR 2025); DFRLab, "The evolving role of AI-generated media in shaping disinformation
 campaigns" (May 2025). Reporting used for survey 4: Press Gazette, "Prolific finance
-journalists facing questions over identities" (Rob Waugh, 12 May 2026). Data and models used
-at run time, not bundled: the YuNet face detector (OpenCV Zoo, MIT); Community Forensics
-weights (OwensLab/commfor-model-384, MIT); TheKernel01/140k-Real-and-Fake-Faces on Hugging
-Face (a mirror of xhlulu's Kaggle set: FFHQ photos and Bojan Tunguz's "1 Million Fake
-Faces"); OpenRL/DeepFakeFace (Stable Diffusion faces and IMDB-WIKI photos); Labeled Faces in
-the Wild; the Internet Archive's Wayback Machine.
+journalists facing questions over identities" (Rob Waugh, 12 May 2026). Reporting used for
+survey 5: Kotaku (Lewis Parker with Ethan Gach, 26 Feb 2026) and Press Gazette (Rob Waugh,
+27 Feb 2026, and Nov 2026). Data and models used at run time, not bundled: the YuNet face
+detector (OpenCV Zoo, MIT); Community Forensics weights (OwensLab/commfor-model-384, MIT);
+TheKernel01/140k-Real-and-Fake-Faces on Hugging Face (a mirror of xhlulu's Kaggle set: FFHQ
+photos and Bojan Tunguz's "1 Million Fake Faces"); OpenRL/DeepFakeFace (Stable Diffusion
+faces and IMDB-WIKI photos); Labeled Faces in the Wild; the Internet Archive's Wayback
+Machine.
